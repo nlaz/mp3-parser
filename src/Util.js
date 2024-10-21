@@ -1,4 +1,4 @@
-
+import { StringType } from "token-types";
 /**
  * Read bit-aligned number start from buffer
  * Total offset in bits = byteOffset * 8 + bitOffset
@@ -16,10 +16,15 @@ export function getBitAllignedNumber(source, byteOffset, bitOffset, len) {
   const bitsRead = 8 - bitOff;
   const bitsLeft = len - bitsRead;
   if (bitsLeft < 0) {
-    value >>= (8 - bitOff - len);
+    value >>= 8 - bitOff - len;
   } else if (bitsLeft > 0) {
     value <<= bitsLeft;
-    value |= getBitAllignedNumber(source, byteOffset, bitOffset + bitsRead, bitsLeft);
+    value |= getBitAllignedNumber(
+      source,
+      byteOffset,
+      bitOffset + bitsRead,
+      bitsLeft,
+    );
   }
   return value;
 }
@@ -37,13 +42,13 @@ export function isBitSet(source, byteOffset, bitOffset) {
 }
 
 export function stripNulls(str) {
-  str = str.replace(/^\x00+/g, '');
-  str = str.replace(/\x00+$/g, '');
+  str = str.replace(/^\x00+/g, "");
+  str = str.replace(/\x00+$/g, "");
   return str;
 }
 
 export function trimRightNull(x) {
-  const pos0 = x.indexOf('\0');
+  const pos0 = x.indexOf("\0");
   return pos0 === -1 ? x : x.substr(0, pos0);
 }
 
@@ -57,12 +62,20 @@ export function getBit(buf, off, bit) {
 export function decodeString(uint8Array, encoding) {
   // annoying workaround for a double BOM issue
   // https://github.com/leetreveil/musicmetadata/issues/84
-  if (uint8Array[0] === 0xFF && uint8Array[1] === 0xFE) { // little endian
+  if (uint8Array[0] === 0xff && uint8Array[1] === 0xfe) {
+    // little endian
     return decodeString(uint8Array.subarray(2), encoding);
-  }if (encoding === 'utf-16le' && uint8Array[0] === 0xFE && uint8Array[1] === 0xFF) {
+  }
+  if (
+    encoding === "utf-16le" &&
+    uint8Array[0] === 0xfe &&
+    uint8Array[1] === 0xff
+  ) {
     // BOM, indicating big endian decoding
     if ((uint8Array.length & 1) !== 0)
-      throw new FieldDecodingError('Expected even number of octets for 16-bit unicode string');
+      throw new FieldDecodingError(
+        "Expected even number of octets for 16-bit unicode string",
+      );
     return decodeString(swapBytes(uint8Array), encoding);
   }
   return new StringType(uint8Array.length, encoding).get(uint8Array, 0);
@@ -78,18 +91,18 @@ export function decodeString(uint8Array, encoding) {
  */
 export function findZero(uint8Array, start, end, encoding) {
   let i = start;
-  if (encoding === 'utf-16le') {
+  if (encoding === "utf-16le") {
     while (uint8Array[i] !== 0 || uint8Array[i + 1] !== 0) {
       if (i >= end) return end;
       i += 2;
     }
     return i;
   }
-    while (uint8Array[i] !== 0) {
-      if (i >= end) return end;
-      i++;
-    }
-    return i;
+  while (uint8Array[i] !== 0) {
+    if (i >= end) return end;
+    i++;
+  }
+  return i;
 }
 
 /**
@@ -113,15 +126,17 @@ export function dbToRatio(dB) {
  * @param value string holding a ratio like '0.034' or '-7.54 dB'
  */
 export function toRatio(value) {
-  const ps = value.split(' ').map(p => p.trim().toLowerCase());
+  const ps = value.split(" ").map((p) => p.trim().toLowerCase());
   if (ps.length >= 1) {
     const v = Number.parseFloat(ps[0]);
-    return ps.length === 2 && ps[1] === 'db' ? {
-      dB: v,
-      ratio: dbToRatio(v)
-    } : {
-      dB: ratioToDb(v),
-      ratio: v
-    };
+    return ps.length === 2 && ps[1] === "db"
+      ? {
+          dB: v,
+          ratio: dbToRatio(v),
+        }
+      : {
+          dB: ratioToDb(v),
+          ratio: v,
+        };
   }
 }

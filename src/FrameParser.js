@@ -62,9 +62,12 @@ export class FrameParser {
    * @param warningCollector - Used to collect decode issue
    */
   constructor(major, warningCollector) {
+    this.major = major;
+    this.warningCollector = warningCollector;
   }
 
   readData(uint8Array, type, includeCovers) {
+    console.log('unint8Array', uint8Array);
     if (uint8Array.length === 0) {
       this.warningCollector.addWarning(`id3v2.${this.major} header has empty tag type=${type}`);
       return;
@@ -76,7 +79,6 @@ export class FrameParser {
     const nullTerminatorLength = FrameParser.getNullTerminatorLength(encoding);
     let fzero;
 
-    debug(`Parsing tag type=${type}, encoding=${encoding}, bom=${bom}`);
     switch (type !== 'TXXX' && type[0] === 'T' ? 'T*' : type) {
       case 'T*': // 4.2.1. Text information frames - details
       case 'GRP1': // iTunes-specific ID3v2 grouping field
@@ -319,7 +321,6 @@ export class FrameParser {
       }
 
       default:
-        debug(`Warning: unsupported id3v2-tag-type: ${type}`);
         break;
     }
 

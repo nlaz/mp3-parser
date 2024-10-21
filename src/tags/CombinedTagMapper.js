@@ -1,10 +1,12 @@
 import { ID3v1TagMapper } from './ID3v1TagMapper.js';
+import { ID3v22TagMapper } from './ID3v22TagMapper.js';
+import { ID3v24TagMapper } from './ID3v24TagMapper.js';
 
 export class CombinedTagMapper {
   constructor() {
     this.tagMappers = {};
 
-    [new ID3v1TagMapper()].forEach(mapper => {
+    [new ID3v1TagMapper(), new ID3v22TagMapper(), new ID3v24TagMapper()].forEach(mapper => {
       this.registerTagMapper(mapper);
     });
   }

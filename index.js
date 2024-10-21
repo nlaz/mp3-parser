@@ -3,11 +3,11 @@ import { MpegParser } from "./src/MpegParser.js";
 import { MetadataCollector } from "./src/MetadataCollector.js";
 
 const filePath = "sample.mp3";
-const fileTokenizer = await fromFile(filePath);
+const tokenizer = await fromFile(filePath);
 const opts = {};
-console.log("fileTokenizer", fileTokenizer.peekToken());
 const metadata = new MetadataCollector(opts);
-const parser = new MpegParser(metadata, fileTokenizer, opts);
+const parser = new MpegParser(metadata, tokenizer, opts);
 await parser.parse();
 
 console.log("metadata", metadata);
+console.log("warning", metadata.quality.warnings[0]);

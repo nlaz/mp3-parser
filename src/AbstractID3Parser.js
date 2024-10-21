@@ -12,8 +12,8 @@ export class AbstractID3Parser extends BasicParser {
     return (await tokenizer.peekToken(ID3v2Header)).fileIdentifier === "ID3";
   }
 
-  constructor() {
-    super();
+  constructor(metadata, tokenizer, options) {
+    super(metadata, tokenizer, options);
     this.id3parser = new ID3v2Parser();
   }
 
@@ -22,7 +22,6 @@ export class AbstractID3Parser extends BasicParser {
       await this.parseID3v2();
     } catch (err) {
       if (err instanceof EndOfStreamError) {
-        debug("End-of-stream");
       } else {
         throw err;
       }
@@ -46,7 +45,6 @@ export class AbstractID3Parser extends BasicParser {
     if (this.options.skipPostHeaders && this.metadata.hasAny()) {
       this.finalize();
     } else {
-      console.log("ID3v1Parser");
       const id3v1parser = new ID3v1Parser(
         this.metadata,
         this.tokenizer,

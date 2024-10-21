@@ -186,7 +186,7 @@ function getVbrCodecProfile(vbrScale) {
 }
 
 export class MpegParser extends AbstractID3Parser {
-  constructor() {
+  constructor(metadata, tokenizer, options) {
     super();
     this.frameCount = 0;
     this.syncFrameCount = -1;
@@ -200,6 +200,9 @@ export class MpegParser extends AbstractID3Parser {
     this.samplesPerFrame = null;
     this.buf_frame_header = new Uint8Array(4);
     this.mpegOffset = null;
+    this.metadata = metadata;
+    this.tokenizer = tokenizer;
+    this.options = options;
     this.syncPeek = {
       buf: new Uint8Array(maxPeekLen),
       len: 0,

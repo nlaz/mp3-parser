@@ -30,7 +30,7 @@ export class ID3v2Parser {
       case 4:
         return 10;
       default:
-        throw makeUnexpectedMajorVersionError(majorVer);
+        throw new Error(`Unexpected majorVer: ${majorVer}`);
     }
   }
 
@@ -52,6 +52,7 @@ export class ID3v2Parser {
   }
 
   static readFrameData(uint8Array, frameHeader, majorVer, includeCovers, warningCollector) {
+    console.log('readFrameData', uint8Array, frameHeader, majorVer, includeCovers, warningCollector);
     const frameParser = new FrameParser(majorVer, warningCollector);
     switch (majorVer) {
       case 2:
@@ -66,7 +67,7 @@ export class ID3v2Parser {
         }
         return frameParser.readData(uint8Array, frameHeader.id, includeCovers);
       default:
-        throw makeUnexpectedMajorVersionError(majorVer);
+        throw new Error(`Unexpected majorVer: ${majorVer}`);
     }
   }
 

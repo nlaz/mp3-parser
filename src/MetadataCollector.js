@@ -1,6 +1,7 @@
 import { fileTypeFromBuffer } from 'file-type';
 import { CombinedTagMapper } from './tags/CombinedTagMapper.js';
 import { CommonTagMapper } from './tags/GenericTagMapper.js';
+import { isSingleton } from './tags/GenericTagTypes.js';
 import { toRatio } from './Util.js';
 
 const TagPriority = ['matroska', 'APEv2', 'vorbis', 'ID3v2.4', 'ID3v2.3', 'ID3v2.2', 'exif', 'asf', 'iTunes', 'AIFF', 'ID3v1'];
