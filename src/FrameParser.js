@@ -67,7 +67,6 @@ export class FrameParser {
   }
 
   readData(uint8Array, type, includeCovers) {
-    console.log('unint8Array', uint8Array);
     if (uint8Array.length === 0) {
       this.warningCollector.addWarning(`id3v2.${this.major} header has empty tag type=${type}`);
       return;

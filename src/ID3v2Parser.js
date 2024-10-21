@@ -52,7 +52,6 @@ export class ID3v2Parser {
   }
 
   static readFrameData(uint8Array, frameHeader, majorVer, includeCovers, warningCollector) {
-    console.log('readFrameData', uint8Array, frameHeader, majorVer, includeCovers, warningCollector);
     const frameParser = new FrameParser(majorVer, warningCollector);
     switch (majorVer) {
       case 2:

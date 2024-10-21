@@ -10,4 +10,4 @@ const parser = new MpegParser(metadata, tokenizer, opts);
 await parser.parse();
 
 console.log("metadata", metadata);
-console.log("warning", metadata.quality.warnings[0]);
+console.log("warning", metadata.quality.warnings[2]);
