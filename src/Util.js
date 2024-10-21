@@ -91,3 +91,37 @@ export function findZero(uint8Array, start, end, encoding) {
     }
     return i;
 }
+
+/**
+ * Convert power ratio to DB
+ * ratio: [0..1]
+ */
+export function ratioToDb(ratio) {
+  return 10 * Math.log10(ratio);
+}
+
+/**
+ * Convert dB to ratio
+ * db Decibels
+ */
+export function dbToRatio(dB) {
+  return 10 ** (dB / 10);
+}
+
+/**
+ * Convert replay gain to ratio and Decibel
+ * @param value string holding a ratio like '0.034' or '-7.54 dB'
+ */
+export function toRatio(value) {
+  const ps = value.split(' ').map(p => p.trim().toLowerCase());
+  if (ps.length >= 1) {
+    const v = Number.parseFloat(ps[0]);
+    return ps.length === 2 && ps[1] === 'db' ? {
+      dB: v,
+      ratio: dbToRatio(v)
+    } : {
+      dB: ratioToDb(v),
+      ratio: v
+    };
+  }
+}

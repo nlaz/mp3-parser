@@ -11,6 +11,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "mp3-parser": "^0.3.0"
+    "@tokenizer/token": "^0.3.0",
+    "file-type": "^19.6.0",
+    "strtok3": "^9.0.1",
+    "token-types": "^6.0.0"
   }
 }

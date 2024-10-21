@@ -1,6 +1,6 @@
 import { Uint8ArrayType, UINT24_BE } from 'token-types';
 import { getBit } from './Util.js';
-const { FrameParser, Id3v2ContentError } = require('./FrameParser.js');
+import { FrameParser } from './FrameParser.js';
 import { ExtendedHeader, ID3v2Header, UINT32SYNCSAFE } from './ID3v2Token.js';
 
 const asciiDecoder = new TextDecoder('ascii');
@@ -90,7 +90,7 @@ export class ID3v2Parser {
     const id3Header = await this.tokenizer.readToken(ID3v2Header);
 
     if (id3Header.fileIdentifier !== 'ID3') {
-      throw new Id3v2ContentError('expected ID3-header file-identifier \'ID3\' was not found');
+      throw new Error('expected ID3-header file-identifier \'ID3\' was not found');
     }
 
     this.id3Header = id3Header;
@@ -190,12 +190,8 @@ export class ID3v2Parser {
         break;
 
       default:
-        throw makeUnexpectedMajorVersionError(majorVer);
+        throw new Error(`Unexpected majorVer: ${majorVer}`);
     }
     return header;
   }
-}
-
-function makeUnexpectedMajorVersionError(majorVer) {
-  throw new Id3v2ContentError(`Unexpected majorVer: ${majorVer}`);
 }

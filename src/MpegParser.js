@@ -185,7 +185,7 @@ function getVbrCodecProfile(vbrScale) {
   return `V${Math.floor((100 - vbrScale) / 10)}`;
 }
 
-class MpegParser extends AbstractID3Parser {
+export class MpegParser extends AbstractID3Parser {
   constructor() {
     super();
     this.frameCount = 0;

@@ -1,7 +1,7 @@
 import { EndOfStreamError } from "strtok3";
 import { ID3v2Header } from "./ID3v2Token.js";
 import { ID3v2Parser } from "./ID3v2Parser.js";
-import { ID3v1Parser } from "../ID3v1Parser.js";
+import { ID3v1Parser } from "./ID3v1Parser.js";
 import { BasicParser } from "./BasicParser.js";
 
 /**

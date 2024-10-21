@@ -2,7 +2,7 @@ import { UINT32_BE, UINT8 } from 'token-types';
 
 import { findZero, decodeString } from './Util.js';
 import { AttachedPictureType, SyncTextHeader, TextEncodingToken, TextHeader } from './ID3v2Token.js';
-import { Genres } from '../id3v1/ID3v1Parser.js';
+import { Genres } from './ID3v1Parser.js';
 
 const defaultEnc = 'latin1'; // latin1 == iso-8859-1;
 
