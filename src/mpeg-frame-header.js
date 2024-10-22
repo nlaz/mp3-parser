@@ -1,29 +1,5 @@
 import { getBitAllignedNumber, isBitSet } from "./utils.js";
 
-const MPEG4 = {
-  AudioObjectTypes: [
-    "AAC Main",
-    "AAC LC",
-    "AAC SSR",
-    "AAC LTP",
-  ],
-
-  SamplingFrequencies: [
-    96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350, null, null, -1,
-  ],
-};
-
-const MPEG4_ChannelConfigurations = [
-  undefined,
-  ["front-center"],
-  ["front-left", "front-right"],
-  ["front-center", "front-left", "front-right"],
-  ["front-center", "front-left", "front-right", "back-center"],
-  ["front-center", "front-left", "front-right", "back-left", "back-right"],
-  ["front-center", "front-left", "front-right", "back-left", "back-right", "LFE-channel"],
-  ["front-center", "front-left", "front-right", "side-left", "side-right", "back-left", "back-right", "LFE-channel"],
-];
-
 export class MpegFrameHeader {
   static SyncByte1 = 0xff;
   static SyncByte2 = 0xe0;
@@ -64,11 +40,7 @@ export class MpegFrameHeader {
     this.versionIndex = getBitAllignedNumber(buf, off + 1, 3, 2);
     this.layer = MpegFrameHeader.LayerDescription[getBitAllignedNumber(buf, off + 1, 5, 2)];
 
-    if (this.versionIndex > 1 && this.layer === 0) {
-      this.parseAdtsHeader(buf, off);
-    } else {
-      this.parseMpegHeader(buf, off);
-    }
+    this.parseHeader(buf, off);
 
     this.isProtectedByCRC = !isBitSet(buf, off + 1, 7);
   }
@@ -105,7 +77,7 @@ export class MpegFrameHeader {
     return [null, 4, 1, 1][this.layer];
   }
 
-  parseMpegHeader(buf, off) {
+  parseHeader(buf, off) {
     this.container = "MPEG";
     this.bitrateIndex = getBitAllignedNumber(buf, off + 2, 0, 4);
     this.sampRateFreqIndex = getBitAllignedNumber(buf, off + 2, 4, 2);
@@ -132,22 +104,6 @@ export class MpegFrameHeader {
     if (this.samplingRate == null) {
       throw new Error("Cannot determine sampling-rate");
     }
-  }
-
-  parseAdtsHeader(buf, off) {
-    this.version = this.versionIndex === 2 ? 4 : 2;
-    this.container = `ADTS/MPEG-${this.version}`;
-    const profileIndex = getBitAllignedNumber(buf, off + 2, 0, 2);
-    this.codec = "AAC";
-    this.codecProfile = MPEG4.AudioObjectTypes[profileIndex];
-
-    const samplingFrequencyIndex = getBitAllignedNumber(buf, off + 2, 2, 4);
-    this.samplingRate = MPEG4.SamplingFrequencies[samplingFrequencyIndex];
-
-    const channelIndex = getBitAllignedNumber(buf, off + 2, 7, 3);
-    this.mp4ChannelConfig = MPEG4_ChannelConfigurations[channelIndex];
-
-    this.frameLength = getBitAllignedNumber(buf, off + 3, 6, 2) << 11;
   }
 
   calcBitrate() {

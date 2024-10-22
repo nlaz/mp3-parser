@@ -132,9 +132,7 @@ export class MpegParser {
     this.metadata.setFormat("sampleRate", header.samplingRate);
 
     this.frameCount++;
-    return header.version !== null && header.version >= 2 && header.layer === 0
-      ? this.parseAdts(header)
-      : this.parseAudioFrameHeader(header);
+    return this.parseAudioFrameHeader(header);
   }
 
   async parseAudioFrameHeader(header) {
@@ -199,43 +197,6 @@ export class MpegParser {
       return false;
     }
     await this.skipSideInformation();
-    return false;
-  }
-
-  async parseAdts(header) {
-    const buf = new Uint8Array(3);
-    await this.tokenizer.readBuffer(buf);
-    header.frameLength += getBitAllignedNumber(buf, 0, 0, 11);
-    this.totalDataLength += header.frameLength;
-    this.samplesPerFrame = 1024;
-
-    if (header.samplingRate !== null) {
-      const framesPerSec = header.samplingRate / this.samplesPerFrame;
-      const bytesPerFrame =
-        this.frameCount === 0 ? 0 : this.totalDataLength / this.frameCount;
-      const bitrate = 8 * bytesPerFrame * framesPerSec + 0.5;
-      this.metadata.setFormat("bitrate", bitrate);
-    }
-
-    await this.tokenizer.ignore(
-      header.frameLength > 7 ? header.frameLength - 7 : 1,
-    );
-
-    // Consume remaining header and frame data
-    if (this.frameCount === 3) {
-      this.metadata.setFormat("codecProfile", header.codecProfile);
-      if (header.mp4ChannelConfig) {
-        this.metadata.setFormat(
-          "numberOfChannels",
-          header.mp4ChannelConfig.length,
-        );
-      }
-      if (this.options.duration) {
-        this.calculateEofDuration = true;
-      } else {
-        return true; // Stop parsing after the third frame
-      }
-    }
     return false;
   }
 
