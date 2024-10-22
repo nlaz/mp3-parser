@@ -1,10 +1,15 @@
 import { INT16_BE, Uint8ArrayType } from "token-types";
 import { EndOfStreamError } from "strtok3";
-import { InfoTagHeaderTag, LameEncoderVersion, readXingHeader } from "./xing-tags.js";
-import { getBitAllignedNumber } from "./utils.js";
+import {
+  InfoTagHeaderTag,
+  LameEncoderVersion,
+  readXingHeader,
+} from "./xing-tags.js";
 import { MpegFrameHeader } from "./mpeg-frame-header.js";
 
-const maxPeekLen = 1024;
+const MAX_PEEK_LENGTH = 1024;
+const MIN_SYNC_PEEK_LENGTH = 163;
+const SYNC_BYTE_MASK = 0xe0;
 
 const FrameHeader = {
   len: 4,
@@ -14,10 +19,6 @@ const FrameHeader = {
   },
 };
 
-function getVbrCodecProfile(vbrScale) {
-  return `V${Math.floor((100 - vbrScale) / 10)}`;
-}
-
 export class MpegParser {
   constructor(metadata, tokenizer, options) {
     this.frameCount = 0;
@@ -26,17 +27,17 @@ export class MpegParser {
     this.totalDataLength = 0;
     this.bitrates = [];
     this.offset = 0;
-    this.frame_size = 0;
+    this.frameSize = 0;
     this.crc = null;
     this.calculateEofDuration = false;
     this.samplesPerFrame = null;
-    this.buf_frame_header = new Uint8Array(4);
+    this.bufferFrameHeader = new Uint8Array(4);
     this.mpegOffset = null;
     this.metadata = metadata;
     this.tokenizer = tokenizer;
     this.options = options;
     this.syncPeek = {
-      buf: new Uint8Array(maxPeekLen),
+      buf: new Uint8Array(MAX_PEEK_LENGTH),
       len: 0,
     };
   }
@@ -52,18 +53,22 @@ export class MpegParser {
       }
     } catch (err) {
       if (err instanceof EndOfStreamError) {
-        if (this.calculateEofDuration) {
-          if (this.samplesPerFrame !== null) {
-            const numberOfSamples = this.frameCount * this.samplesPerFrame;
-            this.metadata.setFormat("numberOfSamples", numberOfSamples);
-            if (this.metadata.format.sampleRate) {
-              const duration = numberOfSamples / this.metadata.format.sampleRate;
-              this.metadata.setFormat("duration", duration);
-            }
-          }
-        }
+        this.handleEndOfStreamError();
       } else {
         throw err;
+      }
+    }
+  }
+
+  handleEndOfStreamError() {
+    if (this.calculateEofDuration && this.samplesPerFrame !== null) {
+      const numberOfSamples = this.frameCount * this.samplesPerFrame;
+      this.metadata.setFormat("numberOfSamples", numberOfSamples);
+
+      const { sampleRate } = this.metadata.format;
+      if (sampleRate) {
+        const duration = numberOfSamples / sampleRate;
+        this.metadata.setFormat("duration", duration);
       }
     }
   }
@@ -72,39 +77,46 @@ export class MpegParser {
     let gotFirstSync = false;
 
     while (true) {
-      let bo = 0;
+      let bufferOffset = 0;
       this.syncPeek.len = await this.tokenizer.peekBuffer(this.syncPeek.buf, {
-        length: maxPeekLen,
+        length: MAX_PEEK_LENGTH,
         mayBeLess: true,
       });
-      if (this.syncPeek.len <= 163) {
+      if (this.syncPeek.len <= MIN_SYNC_PEEK_LENGTH) {
         throw new EndOfStreamError();
       }
       while (true) {
-        if (gotFirstSync && (this.syncPeek.buf[bo] & 0xe0) === 0xe0) {
-          this.buf_frame_header[0] = MpegFrameHeader.SyncByte1;
-          this.buf_frame_header[1] = this.syncPeek.buf[bo];
-          await this.tokenizer.ignore(bo);
-          if (this.syncFrameCount === this.frameCount) {
-            this.frameCount = 0;
-            this.frame_size = 0;
-          }
-          this.syncFrameCount = this.frameCount;
-          return; // sync
+        if (gotFirstSync && (this.syncPeek.buf[bufferOffset] & SYNC_BYTE_MASK) === SYNC_BYTE_MASK) {
+          await this.handleSync(bufferOffset);
+          return;
         }
+
         gotFirstSync = false;
-        bo = this.syncPeek.buf.indexOf(MpegFrameHeader.SyncByte1, bo);
-        if (bo === -1) {
+        bufferOffset = this.syncPeek.buf.indexOf(MpegFrameHeader.SyncByte1, bufferOffset);
+
+        if (bufferOffset === -1) {
           if (this.syncPeek.len < this.syncPeek.buf.length) {
             throw new EndOfStreamError();
           }
           await this.tokenizer.ignore(this.syncPeek.len);
-          break; // continue with next buffer
+          break;
         }
-        ++bo;
+        bufferOffset++;
         gotFirstSync = true;
       }
     }
+  }
+
+  async handleSync(bufferOffset) {
+    this.bufferFrameHeader[0] = MpegFrameHeader.SyncByte1;
+    this.bufferFrameHeader[1] = this.syncPeek.buf[bufferOffset];
+    await this.tokenizer.ignore(bufferOffset);
+
+    if (this.syncFrameCount === this.frameCount) {
+      this.frameCount = 0;
+      this.frameSize = 0;
+    }
+    this.syncFrameCount = this.frameCount;
   }
 
   async parseCommonMpegHeader() {
@@ -112,49 +124,81 @@ export class MpegParser {
       this.mpegOffset = this.tokenizer.position - 1;
     }
 
-    await this.tokenizer.peekBuffer(this.buf_frame_header, {
-      offset: 1,
-      length: 3,
-    });
-
-    let header;
-    try {
-      header = FrameHeader.get(this.buf_frame_header, 0);
-    } catch (err) {
-      await this.tokenizer.ignore(1);
-      throw err;
-    }
+    const header = await this.readFrameHeader();
     await this.tokenizer.ignore(3);
 
-    this.metadata.setFormat("container", header.container);
-    this.metadata.setFormat("codec", header.codec);
-    this.metadata.setFormat("lossless", false);
-    this.metadata.setFormat("sampleRate", header.samplingRate);
+    this.updateMetadataFormat(header);
 
     this.frameCount++;
     return this.parseAudioFrameHeader(header);
   }
 
-  async parseAudioFrameHeader(header) {
-    this.metadata.setFormat(
-      "numberOfChannels",
-      header.channelMode === "mono" ? 1 : 2,
-    );
+  async readFrameHeader() {
+    await this.tokenizer.peekBuffer(this.bufferFrameHeader, {
+      offset: 1,
+      length: 3,
+    });
+
+    try {
+      return FrameHeader.get(this.bufferFrameHeader, 0);
+    } catch (err) {
+      await this.tokenizer.ignore(1);
+      throw err;
+    }
+  }
+
+  updateMetadataFormat(header) {
+    this.metadata.setFormat("container", header.container);
+    this.metadata.setFormat("codec", header.codec);
+    this.metadata.setFormat("lossless", false);
+    this.metadata.setFormat("sampleRate", header.samplingRate);
+  }
+
+  updateAudioMetadata(header) {
+    this.metadata.setFormat("numberOfChannels", header.channelMode === "mono" ? 1 : 2);
     this.metadata.setFormat("bitrate", header.bitrate);
+  }
+
+  calculateFrameSize(header, samplesPerFrame, slotSize) {
+    const bps = samplesPerFrame / 8.0;
+    if (header.bitrate !== null && header.samplingRate != null) {
+      const fsize = (bps * header.bitrate) / header.samplingRate + (header.padding ? slotSize : 0);
+      this.frameSize = Math.floor(fsize);
+    }
+  }
+
+  async handleFirstFrame() {
+    this.offset = FrameHeader.len;
+    await this.skipSideInformation();
+    return false;
+  }
+
+  handleThirdFrame(samplesPerFrame) {
+    // the stream is CBR if the first 3 frame bitrates are the same
+    if (this.areAllSame(this.bitrates)) {
+      // Actual calculation will be done in finalize
+      this.samplesPerFrame = samplesPerFrame;
+      this.metadata.setFormat("codecProfile", "CBR");
+      return !!this.tokenizer.fileInfo.size; // Will calculate duration based on the file size
+    }
+
+    if (this.metadata.format.duration) {
+      return true; // We already got the duration, stop processing MPEG stream any further
+    }
+
+    return !this.options.duration; // Enforce duration not enabled, stop processing entire stream
+  }
+
+  async parseAudioFrameHeader(header) {
+    this.updateAudioMetadata(header);
 
     const slot_size = header.calcSlotSize();
     if (slot_size === null) {
       throw new Error("invalid slot_size");
     }
 
-    const samples_per_frame = header.calcSamplesPerFrame();
-    const bps = samples_per_frame / 8.0;
-    if (header.bitrate !== null && header.samplingRate != null) {
-      const fsize =
-        (bps * header.bitrate) / header.samplingRate +
-        (header.padding ? slot_size : 0);
-      this.frame_size = Math.floor(fsize);
-    }
+    const samplesPerFrame = header.calcSamplesPerFrame();
+    this.calculateFrameSize(header, samplesPerFrame, slot_size);
 
     this.audioFrameHeader = header;
     if (header.bitrate !== null) {
@@ -163,41 +207,26 @@ export class MpegParser {
 
     // xtra header only exists in first frame
     if (this.frameCount === 1) {
-      this.offset = FrameHeader.len;
-      await this.skipSideInformation();
-      return false;
+      return this.handleFirstFrame();
     }
 
+    console.log('this.options.duration', this.options);
     if (this.frameCount === 3) {
-      // the stream is CBR if the first 3 frame bitrates are the same
-      if (this.areAllSame(this.bitrates)) {
-        // Actual calculation will be done in finalize
-        this.samplesPerFrame = samples_per_frame;
-        this.metadata.setFormat("codecProfile", "CBR");
-        if (this.tokenizer.fileInfo.size) return true; // Will calculate duration based on the file size
-      } else if (this.metadata.format.duration) {
-        return true; // We already got the duration, stop processing MPEG stream any further
-      }
-      if (!this.options.duration) {
-        return true; // Enforce duration not enabled, stop processing entire stream
-      }
+      console.log('here');
+      return this.handleThirdFrame(samplesPerFrame);
     }
+    console.log('here 2 frame count', this.frameCount);
 
     // once we know the file is VBR attach listener to end of
     // stream so we can do the duration calculation when we
     // have counted all the frames
     if (this.options.duration && this.frameCount === 4) {
-      this.samplesPerFrame = samples_per_frame;
+      this.samplesPerFrame = samplesPerFrame;
       this.calculateEofDuration = true;
     }
 
-    this.offset = 4;
-    if (header.isProtectedByCRC) {
-      await this.parseCrc();
-      return false;
-    }
-    await this.skipSideInformation();
-    return false;
+
+    return this.processFrameData(header);
   }
 
   async parseCrc() {
@@ -219,43 +248,42 @@ export class MpegParser {
     }
   }
 
+  async processFrameData(header) {
+    this.offset = 4;
+    if (header.isProtectedByCRC) {
+      return this.parseCrc();
+    }
+    await this.skipSideInformation();
+    return false;
+  }
+
   async readXtraInfoHeader() {
     const headerTag = await this.tokenizer.readToken(InfoTagHeaderTag);
     this.offset += InfoTagHeaderTag.len; // 12
 
     switch (headerTag) {
       case "Info":
-        this.metadata.setFormat("codecProfile", "CBR");
         return this.readXingInfoHeader();
 
-      case "Xing": {
-        const infoTag = await this.readXingInfoHeader();
-        if (infoTag.vbrScale !== null) {
-          const codecProfile = getVbrCodecProfile(infoTag.vbrScale);
-          this.metadata.setFormat("codecProfile", codecProfile);
-        }
-        return null;
-      }
-
-      case "Xtra":
-        break;
+      case "Xing":
+        return this.readXingInfoHeader();
 
       case "LAME": {
-        const version = await this.tokenizer.readToken(LameEncoderVersion);
         if (
-          this.frame_size !== null &&
-          this.frame_size >= this.offset + LameEncoderVersion.len
+          this.frameSize !== null &&
+          this.frameSize >= this.offset + LameEncoderVersion.len
         ) {
           this.offset += LameEncoderVersion.len;
-          this.metadata.setFormat("tool", `LAME ${version}`);
-          await this.skipFrameData(this.frame_size - this.offset);
+          await this.skipFrameData(this.frameSize - this.offset);
           return null;
         }
         break;
       }
+      default:
+        break;
     }
 
-    const frameDataLeft = this.frame_size - this.offset;
+    const frameDataLeft = this.frameSize - this.offset;
     if (frameDataLeft >= 0) {
       await this.skipFrameData(frameDataLeft);
     }
@@ -278,7 +306,7 @@ export class MpegParser {
     }
 
     // frames field is not present
-    const frameDataLeft = this.frame_size - this.offset;
+    const frameDataLeft = this.frameSize - this.offset;
 
     await this.skipFrameData(frameDataLeft);
     return infoTag;
