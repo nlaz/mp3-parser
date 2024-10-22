@@ -1,6 +1,5 @@
 import { INT16_BE, Uint8ArrayType } from "token-types";
 import { EndOfStreamError } from "strtok3";
-import { AbstractID3Parser } from "./AbstractID3Parser.js";
 import { InfoTagHeaderTag, LameEncoderVersion, readXingHeader } from "./XingTag.js";
 import { getBitAllignedNumber, isBitSet } from "./Util.js";
 
@@ -186,9 +185,8 @@ function getVbrCodecProfile(vbrScale) {
   return `V${Math.floor((100 - vbrScale) / 10)}`;
 }
 
-export class MpegParser extends AbstractID3Parser {
+export class MpegParser {
   constructor(metadata, tokenizer, options) {
-    super();
     this.frameCount = 0;
     this.syncFrameCount = -1;
     this.countSkipFrameData = 0;
@@ -210,7 +208,7 @@ export class MpegParser extends AbstractID3Parser {
     };
   }
 
-  async postId3v2Parse() {
+  async parse() {
     this.metadata.setFormat("lossless", false);
 
     try {

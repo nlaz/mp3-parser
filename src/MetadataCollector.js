@@ -2,9 +2,7 @@ import { fileTypeFromBuffer } from 'file-type';
 
 export class MetadataCollector {
   constructor() {
-    this.format = {
-      tagTypes: [],
-    };
+    this.format = {};
     this.native = {};
     this.quality = {
       warnings: []

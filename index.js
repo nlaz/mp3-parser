@@ -4,7 +4,7 @@ import { MetadataCollector } from "./src/MetadataCollector.js";
 
 const filePath = "sample.mp3";
 const tokenizer = await fromFile(filePath);
-const opts = {};
+const opts = { skipPostHeaders: true };
 const metadata = new MetadataCollector(opts);
 const parser = new MpegParser(metadata, tokenizer, opts);
 await parser.parse();
