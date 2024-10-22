@@ -1,22 +1,10 @@
 import { StringType, UINT32_BE } from "./tokens.js";
 import { isBitSet } from "./bits.js";
 
-/**
- * Info Tag: Xing, LAME
- */
 export const InfoTagHeaderTag = new StringType(4, "ascii");
 
-/**
- * LAME TAG value
- * Did not find any official documentation for this
- * Value e.g.: "3.98.4"
- */
 export const LameEncoderVersion = new StringType(6, "ascii");
 
-/**
- * Info Tag
- * Ref: http://gabriel.mp3-tech.org/mp3infotag.html
- */
 export const XingHeaderFlags = {
   len: 4,
   get: (buf, off) => {
@@ -29,10 +17,6 @@ export const XingHeaderFlags = {
   },
 };
 
-// /**
-//  * XING Header Tag
-//  * Ref: http://gabriel.mp3-tech.org/mp3infotag.html
-//  */
 export async function readXingHeader(tokenizer) {
   const flags = await tokenizer.readToken(XingHeaderFlags);
   const xingInfoTag = { numFrames: null, streamSize: null, vbrScale: null };

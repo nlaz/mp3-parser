@@ -15,12 +15,6 @@ export class FileTokenizer {
     this.closed = false;
   }
 
-  /**
-   * Read buffer from file
-   * @param uint8Array - Uint8Array to write result to
-   * @param options - Read behaviour options
-   * @returns Promise number of bytes read
-   */
   async readBuffer(uint8Array, options) {
     const normOptions = this.normalizeOptions(uint8Array, options);
     this.position = normOptions.position;
@@ -33,12 +27,6 @@ export class FileTokenizer {
     return res.bytesRead;
   }
 
-  /**
-   * Peek buffer from file
-   * @param uint8Array - Uint8Array (or Buffer) to write data to
-   * @param options - Read behaviour options
-   * @returns Promise number of bytes read
-   */
   async peekBuffer(uint8Array, options) {
     const normOptions = this.normalizeOptions(uint8Array, options);
 
@@ -49,12 +37,6 @@ export class FileTokenizer {
     return res.bytesRead;
   }
 
-  /**
-   * Read a token from the tokenizer-stream
-   * @param token - The token to read
-   * @param position - If provided, the desired position in the tokenizer-stream
-   * @returns Promise with token data
-   */
   async readToken(token, position = this.position) {
     const uint8Array = new Uint8Array(token.len);
     const len = await this.readBuffer(uint8Array, { position });
@@ -62,12 +44,6 @@ export class FileTokenizer {
     return token.get(uint8Array, 0);
   }
 
-  /**
-   * Peek a token from the tokenizer-stream.
-   * @param token - Token to peek from the tokenizer-stream.
-   * @param position - Offset where to begin reading within the file. If position is null, data will be read from the current file position.
-   * @returns Promise with token data
-   */
   async peekToken(token, position = this.position) {
     const uint8Array = new Uint8Array(token.len);
     const len = await this.peekBuffer(uint8Array, { position });
@@ -105,11 +81,6 @@ export class FileTokenizer {
     }
   }
 
-  /**
-   * Ignore number of bytes, advances the pointer in under tokenizer-stream.
-   * @param length - Number of bytes to ignore
-   * @return resolves the number of bytes ignored, equals length if this available, otherwise the number of bytes available
-   */
   async ignore(length) {
     if (this.fileInfo.size !== undefined) {
       const bytesLeft = this.fileInfo.size - this.position;
