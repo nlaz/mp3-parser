@@ -11,9 +11,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@tokenizer/token": "^0.3.0",
-    "file-type": "^19.6.0",
     "strtok3": "^9.0.1",
-    "token-types": "^6.0.0"
+    "peek-readable": "^5.3.1"
   }
 }

@@ -1,5 +1,5 @@
-import { StringType, UINT32_BE } from "token-types";
-import { isBitSet } from "./utils.js";
+import { StringType, UINT32_BE } from "./tokens.js";
+import { isBitSet } from "./bits.js";
 
 /**
  * Info Tag: Xing, LAME

@@ -1,12 +1,9 @@
-import { fromFile } from "strtok3";
-import { MpegParser } from "./src/mpeg-parser.js";
-import { Metadata } from "./src/metadata.js";
+import { fromFile } from "./src/tokenizer.js";
+import { MpegParser } from "./src/parser.js";
 
 const filePath = "sample.mp3";
 const tokenizer = await fromFile(filePath);
-const opts = { skipPostHeaders: true };
-const metadata = new Metadata(opts);
-const parser = new MpegParser(metadata, tokenizer, opts);
-await parser.parse();
+const parser = new MpegParser(tokenizer);
+const metadata = await parser.parse();
 
 console.log("metadata", metadata);

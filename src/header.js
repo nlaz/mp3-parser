@@ -1,4 +1,4 @@
-import { getBitAllignedNumber, isBitSet } from "./utils.js";
+import { getBitAllignedNumber, isBitSet } from "./utils/bits.js";
 
 export class MpegFrameHeader {
   static SyncByte1 = 0xff;
@@ -118,8 +118,7 @@ export class MpegFrameHeader {
   }
 
   calcSamplingRate() {
-    if (this.sampRateFreqIndex === 0x03 || this.version === null || this.sampRateFreqIndex == null)
-      return null;
+    if (this.sampRateFreqIndex === 0x03 || this.version === null || this.sampRateFreqIndex == null) return null;
     return MpegFrameHeader.sampling_rate_freq_index[this.version][this.sampRateFreqIndex];
   }
 }

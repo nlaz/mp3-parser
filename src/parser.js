@@ -1,41 +1,25 @@
-import { INT16_BE, Uint8ArrayType } from "token-types";
-import { EndOfStreamError } from "strtok3";
-import {
-  InfoTagHeaderTag,
-  LameEncoderVersion,
-  readXingHeader,
-} from "./xing-tags.js";
-import { MpegFrameHeader } from "./mpeg-frame-header.js";
+import { MpegFrameHeader } from "./header.js";
+import { INT16_BE, Uint8ArrayType } from "./utils/tokens.js";
+import { EndOfStreamError } from "./tokenizer.js";
+import { InfoTagHeaderTag, LameEncoderVersion, readXingHeader } from "./utils/xing.js";
 
 const MAX_PEEK_LENGTH = 1024;
 const MIN_SYNC_PEEK_LENGTH = 163;
 const SYNC_BYTE_MASK = 0xe0;
-
-const FrameHeader = {
-  len: 4,
-
-  get: (buf, off) => {
-    return new MpegFrameHeader(buf, off);
-  },
-};
+const FRAME_HEADER_LENGTH = 4;
 
 export class MpegParser {
-  constructor(metadata, tokenizer, options) {
+  constructor(tokenizer) {
     this.frameCount = 0;
     this.syncFrameCount = -1;
-    this.countSkipFrameData = 0;
-    this.totalDataLength = 0;
     this.bitrates = [];
     this.offset = 0;
     this.frameSize = 0;
-    this.crc = null;
     this.calculateEofDuration = false;
     this.samplesPerFrame = null;
     this.bufferFrameHeader = new Uint8Array(4);
-    this.mpegOffset = null;
-    this.metadata = metadata;
+    this.metadata = {};
     this.tokenizer = tokenizer;
-    this.options = options;
     this.syncPeek = {
       buf: new Uint8Array(MAX_PEEK_LENGTH),
       len: 0,
@@ -43,8 +27,6 @@ export class MpegParser {
   }
 
   async parse() {
-    this.metadata.setFormat("lossless", false);
-
     try {
       let quit = false;
       while (!quit) {
@@ -58,17 +40,18 @@ export class MpegParser {
         throw err;
       }
     }
+    return this.metadata;
   }
 
   handleEndOfStreamError() {
     if (this.calculateEofDuration && this.samplesPerFrame !== null) {
       const numberOfSamples = this.frameCount * this.samplesPerFrame;
-      this.metadata.setFormat("numberOfSamples", numberOfSamples);
+      this.setFormat("numberOfSamples", numberOfSamples);
 
-      const { sampleRate } = this.metadata.format;
+      const { sampleRate } = this.metadata;
       if (sampleRate) {
         const duration = numberOfSamples / sampleRate;
-        this.metadata.setFormat("duration", duration);
+        this.setFormat("duration", duration);
       }
     }
   }
@@ -120,10 +103,6 @@ export class MpegParser {
   }
 
   async parseCommonMpegHeader() {
-    if (this.frameCount === 0) {
-      this.mpegOffset = this.tokenizer.position - 1;
-    }
-
     const header = await this.readFrameHeader();
     await this.tokenizer.ignore(3);
 
@@ -140,23 +119,11 @@ export class MpegParser {
     });
 
     try {
-      return FrameHeader.get(this.bufferFrameHeader, 0);
+      return new MpegFrameHeader(this.bufferFrameHeader, 0);
     } catch (err) {
       await this.tokenizer.ignore(1);
       throw err;
     }
-  }
-
-  updateMetadataFormat(header) {
-    this.metadata.setFormat("container", header.container);
-    this.metadata.setFormat("codec", header.codec);
-    this.metadata.setFormat("lossless", false);
-    this.metadata.setFormat("sampleRate", header.samplingRate);
-  }
-
-  updateAudioMetadata(header) {
-    this.metadata.setFormat("numberOfChannels", header.channelMode === "mono" ? 1 : 2);
-    this.metadata.setFormat("bitrate", header.bitrate);
   }
 
   calculateFrameSize(header, samplesPerFrame, slotSize) {
@@ -168,7 +135,7 @@ export class MpegParser {
   }
 
   async handleFirstFrame() {
-    this.offset = FrameHeader.len;
+    this.offset = FRAME_HEADER_LENGTH;
     await this.skipSideInformation();
     return false;
   }
@@ -178,15 +145,11 @@ export class MpegParser {
     if (this.areAllSame(this.bitrates)) {
       // Actual calculation will be done in finalize
       this.samplesPerFrame = samplesPerFrame;
-      this.metadata.setFormat("codecProfile", "CBR");
+      this.setFormat("codecProfile", "CBR");
       return !!this.tokenizer.fileInfo.size; // Will calculate duration based on the file size
     }
 
-    if (this.metadata.format.duration) {
-      return true; // We already got the duration, stop processing MPEG stream any further
-    }
-
-    return !this.options.duration; // Enforce duration not enabled, stop processing entire stream
+    return true;
   }
 
   async parseAudioFrameHeader(header) {
@@ -210,38 +173,25 @@ export class MpegParser {
       return this.handleFirstFrame();
     }
 
-    console.log('this.options.duration', this.options);
     if (this.frameCount === 3) {
-      console.log('here');
       return this.handleThirdFrame(samplesPerFrame);
     }
-    console.log('here 2 frame count', this.frameCount);
-
-    // once we know the file is VBR attach listener to end of
-    // stream so we can do the duration calculation when we
-    // have counted all the frames
-    if (this.options.duration && this.frameCount === 4) {
-      this.samplesPerFrame = samplesPerFrame;
-      this.calculateEofDuration = true;
-    }
-
 
     return this.processFrameData(header);
   }
 
   async parseCrc() {
-    this.crc = await this.tokenizer.readNumber(INT16_BE);
+    await this.tokenizer.readNumber(INT16_BE);
     this.offset += 2;
     return this.skipSideInformation();
   }
 
   async skipSideInformation() {
     if (this.audioFrameHeader) {
-      const sideinfo_length = this.audioFrameHeader.calculateSideInfoLength();
-      if (sideinfo_length !== null) {
-        await this.tokenizer.readToken(new Uint8ArrayType(sideinfo_length));
-        // side information
-        this.offset += sideinfo_length;
+      const sideinfoLength = this.audioFrameHeader.calculateSideInfoLength();
+      if (sideinfoLength !== null) {
+        await this.tokenizer.readToken(new Uint8ArrayType(sideinfoLength));
+        this.offset += sideinfoLength;
         await this.readXtraInfoHeader();
         return;
       }
@@ -261,26 +211,14 @@ export class MpegParser {
     const headerTag = await this.tokenizer.readToken(InfoTagHeaderTag);
     this.offset += InfoTagHeaderTag.len; // 12
 
-    switch (headerTag) {
-      case "Info":
-        return this.readXingInfoHeader();
-
-      case "Xing":
-        return this.readXingInfoHeader();
-
-      case "LAME": {
-        if (
-          this.frameSize !== null &&
-          this.frameSize >= this.offset + LameEncoderVersion.len
-        ) {
-          this.offset += LameEncoderVersion.len;
-          await this.skipFrameData(this.frameSize - this.offset);
-          return null;
-        }
-        break;
+    if (headerTag === "Info" || headerTag === "Xing") {
+      return this.readXingInfoHeader();
+    } else if (headerTag === "LAME") {
+      if (this.frameSize !== null && this.frameSize >= this.offset + LameEncoderVersion.len) {
+        this.offset += LameEncoderVersion.len;
+        await this.skipFrameData(this.frameSize - this.offset);
+        return null;
       }
-      default:
-        break;
     }
 
     const frameDataLeft = this.frameSize - this.offset;
@@ -295,13 +233,9 @@ export class MpegParser {
     const infoTag = await readXingHeader(this.tokenizer);
     this.offset += this.tokenizer.position - offset;
 
-    if (
-      infoTag.streamSize &&
-      this.audioFrameHeader &&
-      infoTag.numFrames !== null
-    ) {
+    if (infoTag.streamSize && this.audioFrameHeader && infoTag.numFrames !== null) {
       const duration = this.audioFrameHeader.calcDuration(infoTag.numFrames);
-      this.metadata.setFormat("duration", duration);
+      this.setFormat("duration", duration);
       return infoTag;
     }
 
@@ -317,7 +251,17 @@ export class MpegParser {
       throw new Error("frame-data-left cannot be negative");
     }
     await this.tokenizer.ignore(frameDataLeft);
-    this.countSkipFrameData += frameDataLeft;
+  }
+
+  updateMetadataFormat(header) {
+    this.setFormat("container", header.container);
+    this.setFormat("codec", header.codec);
+    this.setFormat("sampleRate", header.samplingRate);
+  }
+
+  updateAudioMetadata(header) {
+    this.setFormat("numberOfChannels", header.channelMode === "mono" ? 1 : 2);
+    this.setFormat("bitrate", header.bitrate);
   }
 
   areAllSame(array) {
@@ -325,5 +269,9 @@ export class MpegParser {
     return array.every((element) => {
       return element === first;
     });
+  }
+
+  setFormat(key, value) {
+    this.metadata[key] = value;
   }
 }
