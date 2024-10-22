@@ -122,10 +122,6 @@ export class MpegParser {
       header = FrameHeader.get(this.buf_frame_header, 0);
     } catch (err) {
       await this.tokenizer.ignore(1);
-      if (err instanceof Error) {
-        this.metadata.addWarning(`Parse error: ${err.message}`);
-        return false; // sync
-      }
       throw err;
     }
     await this.tokenizer.ignore(3);
@@ -294,15 +290,12 @@ export class MpegParser {
           await this.skipFrameData(this.frame_size - this.offset);
           return null;
         }
-        this.metadata.addWarning("Corrupt LAME header");
         break;
       }
     }
 
     const frameDataLeft = this.frame_size - this.offset;
-    if (frameDataLeft < 0) {
-      this.metadata.addWarning(`Frame ${this.frameCount}corrupt: negative frameDataLeft`);
-    } else {
+    if (frameDataLeft >= 0) {
       await this.skipFrameData(frameDataLeft);
     }
     return null;
