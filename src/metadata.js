@@ -1,11 +1,9 @@
-import { fileTypeFromBuffer } from 'file-type';
-
-export class MetadataCollector {
+export class Metadata {
   constructor() {
     this.format = {};
     this.native = {};
     this.quality = {
-      warnings: []
+      warnings: [],
     };
   }
 
@@ -17,7 +15,10 @@ export class MetadataCollector {
     this.format[key] = value;
 
     if (this.opts?.observer) {
-      this.opts.observer({metadata: this, tag: {type: 'format', id: key, value}});
+      this.opts.observer({
+        metadata: this,
+        tag: { type: "format", id: key, value },
+      });
     }
   }
 
@@ -26,10 +27,10 @@ export class MetadataCollector {
       this.format.tagTypes.push(tagType);
       this.native[tagType] = [];
     }
-    this.native[tagType].push({id: tagId, value});
+    this.native[tagType].push({ id: tagId, value });
   }
 
   addWarning(warning) {
-    this.quality.warnings.push({message: warning});
+    this.quality.warnings.push({ message: warning });
   }
 }
