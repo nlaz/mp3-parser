@@ -1,13 +1,13 @@
 {
-  "name": "mp3-bitrate",
+  "name": "mp3-parser",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/index.js",
   "type": "module",
   "scripts": {
-    "test": "node index.js"
+    "start": "bun src/index.js",
+    "dev": "bun --watch --no-warnings src/index.js",
+    "build": "bun build src/index.js --outdir dist --target node --minify"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "files": [ "src" ]
 }

@@ -1,4 +1,4 @@
-import { MpegFrameHeader } from "./header.js";
+import {  FrameHeader } from "./header.js";
 import { INT16_BE, Uint8ArrayType } from "./utils/tokens.js";
 import { EndOfStreamError } from "./tokenizer.js";
 import { InfoTagHeaderTag, LameEncoderVersion, readXingHeader } from "./utils/xing.js";
@@ -9,8 +9,8 @@ const MIN_SYNC_PEEK_LENGTH = 163;
 const SYNC_BYTE_MASK = 0xe0;
 const FRAME_HEADER_LENGTH = 4;
 
-export class MpegParser {
-  constructor(filePath) {
+export class Mp3Parser {
+  constructor() {
     this.frameCount = 0;
     this.syncFrameCount = -1;
     this.bitrates = [];
@@ -20,7 +20,6 @@ export class MpegParser {
     this.samplesPerFrame = null;
     this.bufferFrameHeader = new Uint8Array(4);
     this.metadata = {};
-    this.filePath = filePath;
     this.tokenizer = null;
     this.syncPeek = {
       buf: new Uint8Array(MAX_PEEK_LENGTH),
@@ -28,10 +27,10 @@ export class MpegParser {
     };
   }
 
-  async parse() {
+  async parse(filePath) {
     try {
       let quit = false;
-      this.tokenizer = await fromFile(this.filePath);
+      this.tokenizer = await fromFile(filePath);
       while (!quit) {
         await this.sync();
         quit = await this.parseCommonMpegHeader();
@@ -43,7 +42,7 @@ export class MpegParser {
         throw err;
       }
     } finally {
-      await this.tokenizer.close();
+      await this.tokenizer?.close();
     }
     return this.metadata;
   }
@@ -80,7 +79,7 @@ export class MpegParser {
         }
 
         gotFirstSync = false;
-        bufferOffset = this.syncPeek.buf.indexOf(MpegFrameHeader.SyncByte1, bufferOffset);
+        bufferOffset = this.syncPeek.buf.indexOf(FrameHeader.SyncByte1, bufferOffset);
 
         if (bufferOffset === -1) {
           if (this.syncPeek.len < this.syncPeek.buf.length) {
@@ -96,7 +95,7 @@ export class MpegParser {
   }
 
   async handleSync(bufferOffset) {
-    this.bufferFrameHeader[0] = MpegFrameHeader.SyncByte1;
+    this.bufferFrameHeader[0] = FrameHeader.SyncByte1;
     this.bufferFrameHeader[1] = this.syncPeek.buf[bufferOffset];
     await this.tokenizer.ignore(bufferOffset);
 
@@ -124,7 +123,7 @@ export class MpegParser {
     });
 
     try {
-      return new MpegFrameHeader(this.bufferFrameHeader, 0);
+      return new FrameHeader(this.bufferFrameHeader, 0);
     } catch (err) {
       await this.tokenizer.ignore(1);
       throw err;

@@ -1,6 +1,6 @@
 import { getBitAllignedNumber, isBitSet } from "./utils/bits.js";
 
-export class MpegFrameHeader {
+export class FrameHeader {
   static SyncByte1 = 0xff;
   static SyncByte2 = 0xe0;
 
@@ -38,7 +38,7 @@ export class MpegFrameHeader {
 
   constructor(buf, off) {
     this.versionIndex = getBitAllignedNumber(buf, off + 1, 3, 2);
-    this.layer = MpegFrameHeader.LayerDescription[getBitAllignedNumber(buf, off + 1, 5, 2)];
+    this.layer = FrameHeader.LayerDescription[getBitAllignedNumber(buf, off + 1, 5, 2)];
 
     this.parseHeader(buf, off);
 
@@ -50,7 +50,7 @@ export class MpegFrameHeader {
   }
 
   calcSamplesPerFrame() {
-    return MpegFrameHeader.samplesInFrameTable[this.version === 1 ? 0 : 1][this.layer];
+    return FrameHeader.samplesInFrameTable[this.version === 1 ? 0 : 1][this.layer];
   }
 
   calculateSideInfoLength() {
@@ -89,8 +89,8 @@ export class MpegFrameHeader {
     this.isOriginalMedia = isBitSet(buf, off + 3, 5);
     this.emphasis = getBitAllignedNumber(buf, off + 3, 7, 2);
 
-    this.version = MpegFrameHeader.VersionID[this.versionIndex];
-    this.channelMode = MpegFrameHeader.ChannelMode[this.channelModeIndex];
+    this.version = FrameHeader.VersionID[this.versionIndex];
+    this.channelMode = FrameHeader.ChannelMode[this.channelModeIndex];
 
     this.codec = `MPEG ${this.version} Layer ${this.layer}`;
 
@@ -112,13 +112,13 @@ export class MpegFrameHeader {
     }
     if (this.version && this.bitrateIndex) {
       const codecIndex = 10 * Math.floor(this.version) + this.layer;
-      return MpegFrameHeader.bitrate_index[this.bitrateIndex][codecIndex];
+      return FrameHeader.bitrate_index[this.bitrateIndex][codecIndex];
     }
     return null;
   }
 
   calcSamplingRate() {
     if (this.sampRateFreqIndex === 0x03 || this.version === null || this.sampRateFreqIndex == null) return null;
-    return MpegFrameHeader.sampling_rate_freq_index[this.version][this.sampRateFreqIndex];
+    return FrameHeader.sampling_rate_freq_index[this.version][this.sampRateFreqIndex];
   }
 }

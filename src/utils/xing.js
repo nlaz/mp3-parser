@@ -1,5 +1,5 @@
-import { StringType, UINT32_BE } from "./tokens.js";
 import { isBitSet } from "./bits.js";
+import { StringType, UINT32_BE } from "./tokens.js";
 
 export const InfoTagHeaderTag = new StringType(4, "ascii");
 
