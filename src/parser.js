@@ -2,6 +2,7 @@ import { MpegFrameHeader } from "./header.js";
 import { INT16_BE, Uint8ArrayType } from "./utils/tokens.js";
 import { EndOfStreamError } from "./tokenizer.js";
 import { InfoTagHeaderTag, LameEncoderVersion, readXingHeader } from "./utils/xing.js";
+import { fromFile } from "./tokenizer.js";
 
 const MAX_PEEK_LENGTH = 1024;
 const MIN_SYNC_PEEK_LENGTH = 163;
@@ -9,7 +10,7 @@ const SYNC_BYTE_MASK = 0xe0;
 const FRAME_HEADER_LENGTH = 4;
 
 export class MpegParser {
-  constructor(tokenizer) {
+  constructor(filePath) {
     this.frameCount = 0;
     this.syncFrameCount = -1;
     this.bitrates = [];
@@ -19,7 +20,8 @@ export class MpegParser {
     this.samplesPerFrame = null;
     this.bufferFrameHeader = new Uint8Array(4);
     this.metadata = {};
-    this.tokenizer = tokenizer;
+    this.filePath = filePath;
+    this.tokenizer = null;
     this.syncPeek = {
       buf: new Uint8Array(MAX_PEEK_LENGTH),
       len: 0,
@@ -29,6 +31,7 @@ export class MpegParser {
   async parse() {
     try {
       let quit = false;
+      this.tokenizer = await fromFile(this.filePath);
       while (!quit) {
         await this.sync();
         quit = await this.parseCommonMpegHeader();
@@ -39,6 +42,8 @@ export class MpegParser {
       } else {
         throw err;
       }
+    } finally {
+      await this.tokenizer.close();
     }
     return this.metadata;
   }
@@ -141,12 +146,9 @@ export class MpegParser {
   }
 
   handleThirdFrame(samplesPerFrame) {
-    // the stream is CBR if the first 3 frame bitrates are the same
     if (this.areAllSame(this.bitrates)) {
-      // Actual calculation will be done in finalize
       this.samplesPerFrame = samplesPerFrame;
-      this.setFormat("codecProfile", "CBR");
-      return !!this.tokenizer.fileInfo.size; // Will calculate duration based on the file size
+      return !!this.tokenizer.fileInfo.size;
     }
 
     return true;

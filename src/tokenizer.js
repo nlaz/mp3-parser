@@ -7,11 +7,12 @@ export class EndOfStreamError extends Error {
 }
 
 export class FileTokenizer {
-  constructor(fileHandle) {
-    this.fileInfo = {};
+  constructor(fileHandle, options) {
+    this.fileInfo = options?.fileInfo ?? {};
     this.fileHandle = fileHandle;
     this.position = 0;
     this.numBuffer = new Uint8Array(8);
+    this.closed = false;
   }
 
   /**
@@ -46,11 +47,6 @@ export class FileTokenizer {
       throw new EndOfStreamError();
     }
     return res.bytesRead;
-  }
-
-  async close() {
-    await this.fileHandle.close();
-    return super.close();
   }
 
   /**
@@ -99,6 +95,14 @@ export class FileTokenizer {
       length: uint8Array.length,
       position: this.position,
     };
+  }
+
+  async close() {
+    this.closed = true;
+    if (this.fileHandle) {
+      await this.fileHandle.close();
+      this.fileHandle = null;
+    }
   }
 
   /**

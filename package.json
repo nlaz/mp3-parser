@@ -9,9 +9,5 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "strtok3": "^9.0.1",
-    "peek-readable": "^5.3.1"
-  }
+  "license": "ISC"
 }
