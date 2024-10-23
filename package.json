@@ -6,8 +6,6 @@
   "type": "module",
   "scripts": {
     "start": "bun src/index.js",
-    "dev": "bun --watch --no-warnings src/index.js",
-    "build": "bun build src/index.js --outdir dist --target node --minify"
-  },
-  "files": [ "src" ]
+    "dev": "bun --watch --no-warnings src/index.js"
+  }
 }
